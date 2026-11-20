@@ -94,6 +94,18 @@ jobs:
           echo "Isi folder ikon:"
           ls -la app/src/main/res/mipmap-*
 
+      - name: Perbaiki komentar bermasalah di ControlsInstaller.kt (jaga-jaga kalau file lama masih terpasang)
+        run: |
+          f=app/src/main/java/com/cof/launcher/ControlsInstaller.kt
+          if [ -f "$f" ]; then
+            sed -i 's#touch_ps2/\*\.png#touch_ps2 (file png)#' "$f"
+            echo "Baris komentar setelah diperbaiki:"
+            sed -n '9p' "$f"
+          else
+            echo "::error::ControlsInstaller.kt tidak ada di $f"
+            exit 1
+          fi
+
       - name: Build APK (launcher + engine + library game)
         run: |
           export GRADLE_OPTS="-Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000 -Dorg.gradle.internal.repository.max.retries=8 -Dorg.gradle.internal.repository.initial.backoff=1000"
