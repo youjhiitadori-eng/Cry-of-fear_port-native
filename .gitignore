@@ -1,0 +1,12 @@
+# diisi otomatis oleh workflow, jangan di-commit
+cof-src/
+dist/
+app/src/main/jniLibs/
+app/src/main/assets/
+app/src/main/java/org/libsdl/
+app/src/main/java/su/
+build/
+.gradle/
+local.properties
+*.jks
+*.keystore
