@@ -97,13 +97,36 @@ jobs:
       - name: Build APK (launcher + engine + library game)
         run: |
           export GRADLE_OPTS="-Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000 -Dorg.gradle.internal.repository.max.retries=8 -Dorg.gradle.internal.repository.initial.backoff=1000"
-          ok=0
           for i in 1 2 3; do
-            if gradle assembleRelease --stacktrace; then ok=1; break; fi
-            echo "::warning::Percobaan $i gagal, ulang 20 detik lagi"
-            sleep 20
+            set +e
+            gradle assembleRelease --stacktrace --console=plain > build.log 2>&1
+            rc=$?
+            set -e
+            if [ $rc -eq 0 ]; then exit 0; fi
+            # ulang hanya kalau penyebabnya jaringan; error lain pasti sama kalau diulang
+            if grep -qE "Could not (resolve|GET|HEAD|download)|timed out|Connection (reset|refused)|status code (429|50[0-9])" build.log; then
+              echo "::warning::Percobaan $i gagal karena jaringan, ulang 20 detik lagi"
+              sleep 20
+            else
+              break
+            fi
           done
-          [ "$ok" = 1 ]
+          {
+            echo '## Ringkasan error build'
+            echo
+            echo '### Baris error'
+            echo '```'
+            grep -nE '^e: |^w: .*error|error:|Execution failed|Caused by:|AAPT|FAILED$' build.log | grep -vE '^[0-9]+:[[:space:]]+at ' | head -n 30 || true
+            echo '```'
+            echo
+            echo '### What went wrong'
+            echo '```'
+            sed -n '/What went wrong/,/Try:/p' build.log | head -n 40 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "---- 60 baris terakhir sebelum stack trace ----"
+          grep -vE '^[[:space:]]+at ' build.log | tail -n 60
+          exit 1
 
       - name: Tanda tangan + cek isi APK
         env:
