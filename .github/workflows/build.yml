@@ -66,10 +66,16 @@ jobs:
           fi
           ls -la app/src/main/jniLibs/arm64-v8a
 
+      - name: Hapus wrapper jar bawaan source (nggak dipakai lagi, bikin validasi gagal)
+        run: |
+          find cof-src -name gradle-wrapper.jar -print -delete
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.7"
+          # wrapper jar di source yang di-clone (cof-src) belum ada di daftar hash resmi
+          validate-wrappers: false
 
       - name: Build APK (launcher + engine + library game)
         run: gradle assembleRelease --stacktrace
