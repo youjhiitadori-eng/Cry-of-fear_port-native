@@ -39,6 +39,15 @@ jobs:
           sed -i '1i extern void COF_Inventory_VidInit(); extern void COF_Inventory_Draw(float flTime);' cof-src/src/cof/cl_dll/cdll_int.cpp
           sed -i 's/(const char \*)(gpGlobals->pStringBase + (int)offset)/((const char *)(gpGlobals->pStringBase + (int)offset))/g' cof-src/src/cof/dlls/util.h
 
+      - name: Ambil SDL2 (dibutuhkan engine, nggak ikut di repo cry-of-fear-src)
+        run: |
+          SDL_DIR=cof-src/external/xash3d-fwgs/3rdparty/SDL
+          if [ ! -f "$SDL_DIR/CMakeLists.txt" ]; then
+            rm -rf "$SDL_DIR"
+            git clone --depth 1 --branch SDL2 https://github.com/libsdl-org/SDL.git "$SDL_DIR"
+          fi
+          ls "$SDL_DIR/android-project/app/src/main/java/org/libsdl/app" | head -n 5
+
       - name: Build engine Xash3D (hanya untuk diambil library-nya)
         run: |
           cd cof-src/external/xash3d-fwgs/android
