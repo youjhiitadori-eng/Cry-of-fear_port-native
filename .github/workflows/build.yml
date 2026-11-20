@@ -51,7 +51,8 @@ jobs:
       - name: Build engine Xash3D (hanya untuk diambil library-nya)
         run: |
           cd cof-src/external/xash3d-fwgs/android
-          chmod +x gradlew
+          # izin eksekusi sering hilang kalau repo di-upload lewat zip/web
+          chmod +x gradlew app/run-python ../waf ../scripts/*.py 2>/dev/null || true
           ./gradlew assembleContinuous --stacktrace
 
       - name: Masukkan engine ke project launcher
