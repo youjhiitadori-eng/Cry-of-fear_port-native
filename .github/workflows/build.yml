@@ -87,6 +87,13 @@ jobs:
           # wrapper jar di source yang di-clone (cof-src) belum ada di daftar hash resmi
           validate-wrappers: false
 
+      - name: Bersihkan file nyasar di folder ikon (nama file tanpa .png/.xml bikin build gagal)
+        run: |
+          find app/src/main/res -type f \( -path '*/mipmap-*' -o -path '*/drawable*' \) \
+            ! -name '*.png' ! -name '*.xml' ! -name '*.webp' ! -name '*.jpg' -print -delete
+          echo "Isi folder ikon:"
+          ls -la app/src/main/res/mipmap-*
+
       - name: Build APK (launcher + engine + library game)
         run: |
           export GRADLE_OPTS="-Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000 -Dorg.gradle.internal.repository.max.retries=8 -Dorg.gradle.internal.repository.initial.backoff=1000"
