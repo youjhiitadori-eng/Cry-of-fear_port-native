@@ -1,0 +1,113 @@
+name: Build Cry of Fear (satu APK)
+
+# Manual: tab Actions > Build Cry of Fear > Run workflow
+# Hasil: SATU APK (CoF-Launcher.apk) berisi launcher + engine Xash3D + library game.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Clone kode game + engine (cry-of-fear-src)
+        run: git clone --depth 1 https://github.com/TimRol83/cry-of-fear-src.git cof-src
+
+      - name: Install Android SDK/NDK
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" "platforms;android-34" "platforms;android-35" "build-tools;34.0.0" \
+                  "ndk;29.0.14206865" "cmake;3.22.1"
+
+      - name: Patch kode game untuk clang (sama seperti workflow iOS)
+        run: |
+          sed -i '1i extern void COF_Inventory_VidInit(); extern void COF_Inventory_Draw(float flTime);' cof-src/src/cof/cl_dll/cdll_int.cpp
+          sed -i 's/(const char \*)(gpGlobals->pStringBase + (int)offset)/((const char *)(gpGlobals->pStringBase + (int)offset))/g' cof-src/src/cof/dlls/util.h
+
+      - name: Build engine Xash3D (hanya untuk diambil library-nya)
+        run: |
+          cd cof-src/external/xash3d-fwgs/android
+          chmod +x gradlew
+          ./gradlew assembleContinuous --stacktrace
+
+      - name: Masukkan engine ke project launcher
+        run: |
+          ENGINE_APK=$(find cof-src/external/xash3d-fwgs/android/app/build/outputs/apk -name '*.apk' | head -n1)
+          echo "Engine APK: $ENGINE_APK"
+          python3 .github/scripts/prepare_engine.py cof-src "$ENGINE_APK" app/src/main
+          STRIP=$(find "$ANDROID_HOME/ndk/29.0.14206865" -name llvm-strip | head -n1)
+          if [ -n "$STRIP" ]; then
+            for f in app/src/main/jniLibs/arm64-v8a/*.so; do "$STRIP" --strip-unneeded "$f" || true; done
+          fi
+          ls -la app/src/main/jniLibs/arm64-v8a
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Build APK (launcher + engine + library game)
+        run: gradle assembleRelease --stacktrace
+
+      - name: Tanda tangan + cek isi APK
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.KS_PASS }}
+        run: |
+          mkdir -p dist
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n1)
+          UNSIGNED=$(find app/build/outputs/apk/release -name '*.apk' | head -n1)
+          echo "APK: $UNSIGNED"
+
+          if [ -n "$KEYSTORE_B64" ] && [ -n "$KS_PASS" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/cof.jks"
+            export SIGN_PASS="$KS_PASS"
+          else
+            echo "::warning::Secret KEYSTORE_B64/KS_PASS kosong, pakai key sementara (nggak bisa menimpa build sebelumnya)."
+            keytool -genkeypair -keystore "$RUNNER_TEMP/cof.jks" -storetype PKCS12 -alias cof \
+              -keyalg RSA -keysize 2048 -validity 10000 -storepass tempcof123 -keypass tempcof123 \
+              -dname "CN=temp" > /dev/null 2>&1
+            export SIGN_PASS=tempcof123
+          fi
+          "$APKSIGNER" sign --ks "$RUNNER_TEMP/cof.jks" --ks-key-alias cof \
+            --ks-pass env:SIGN_PASS --key-pass env:SIGN_PASS \
+            --out dist/CoF-Launcher.apk "$UNSIGNED"
+
+          echo "=== library native di APK ==="
+          unzip -l dist/CoF-Launcher.apk | grep -E "lib/arm64-v8a/.*\.so"
+          for need in libxash.so libSDL2.so; do
+            unzip -l dist/CoF-Launcher.apk | grep -q "lib/arm64-v8a/$need" || { echo "::error::$need tidak ada di APK"; exit 1; }
+          done
+          COUNT=$(unzip -l dist/CoF-Launcher.apk | grep -cE "lib/arm64-v8a/.*\.so")
+          echo "Total library: $COUNT"
+
+          FOUND=0
+          for d in $(unzip -Z1 dist/CoF-Launcher.apk | grep -E '^classes[0-9]*\.dex$'); do
+            unzip -p dist/CoF-Launcher.apk "$d" | grep -aq 'su/xash/engine/XashActivity' && FOUND=1
+          done
+          [ "$FOUND" = 1 ] || { echo "::error::XashActivity tidak ada di dex"; exit 1; }
+
+          AAPT2=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -n1)
+          "$AAPT2" dump badging dist/CoF-Launcher.apk | grep -E "^package:|^application-label:"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: CoF-Launcher-APK
+          path: dist/CoF-Launcher.apk
+          if-no-files-found: error
