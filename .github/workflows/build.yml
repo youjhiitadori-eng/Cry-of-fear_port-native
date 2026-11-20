@@ -51,6 +51,9 @@ jobs:
       - name: Build engine Xash3D (hanya untuk diambil library-nya)
         run: |
           cd cof-src/external/xash3d-fwgs/android
+          # Cuma arm64 yang dipakai, jadi nggak perlu build armeabi-v7a dan x86 (jauh lebih cepat)
+          sed -i 's/setOf("armeabi-v7a", "arm64-v8a", "x86")/setOf("arm64-v8a")/' app/build.gradle.kts
+          grep -n 'ninja.abiFilters' app/build.gradle.kts
           # izin eksekusi sering hilang kalau repo di-upload lewat zip/web
           chmod +x gradlew app/run-python ../waf ../scripts/*.py 2>/dev/null || true
           ./gradlew assembleContinuous --stacktrace
