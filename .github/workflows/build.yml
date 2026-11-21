@@ -65,7 +65,7 @@ jobs:
           done
           [ "$ok" = 1 ]
 
-      - name: Masukkan engine ke project launcher
+            - name: Masukkan engine ke project launcher
         run: |
           ENGINE_APK=$(find cof-src/external/xash3d-fwgs/android/app/build/outputs/apk -name '*.apk' | head -n1)
           echo "Engine APK: $ENGINE_APK"
@@ -76,10 +76,14 @@ jobs:
           fi
           ls -la app/src/main/jniLibs/arm64-v8a
 
+      - name: Hapus baseline profile bawaan engine (bentrok sama yang digenerate ulang Gradle)
+        run: |
+          find app/src/main/assets -ipath '*dexopt*' -print -delete 2>/dev/null || true
+          find app/src/main -iname 'baseline.prof*' -print -delete 2>/dev/null || true
+
       - name: Hapus wrapper jar bawaan source (nggak dipakai lagi, bikin validasi gagal)
         run: |
           find cof-src -name gradle-wrapper.jar -print -delete
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
