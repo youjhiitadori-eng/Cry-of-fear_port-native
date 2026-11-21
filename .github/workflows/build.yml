@@ -109,15 +109,16 @@ jobs:
       - name: Build APK (launcher + engine + library game)
         run: |
           export GRADLE_OPTS="-Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000 -Dorg.gradle.internal.repository.max.retries=8 -Dorg.gradle.internal.repository.initial.backoff=1000"
-          for i in 1 2 3; do
+                    for i in 1 2 3; do
             set +e
-            gradle assembleRelease --stacktrace --console=plain > build.log 2>&1
+            gradle clean assembleRelease --no-build-cache --stacktrace --console=plain > build.log 2>&1
             rc=$?
             set -e
             if [ $rc -eq 0 ]; then exit 0; fi
             # ulang hanya kalau penyebabnya jaringan; error lain pasti sama kalau diulang
             if grep -qE "Could not (resolve|GET|HEAD|download)|timed out|Connection (reset|refused)|status code (429|50[0-9])" build.log; then
               echo "::warning::Percobaan $i gagal karena jaringan, ulang 20 detik lagi"
+              rm -rf app/build
               sleep 20
             else
               break
