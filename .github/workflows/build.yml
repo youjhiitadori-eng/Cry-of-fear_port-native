@@ -157,16 +157,25 @@ jobs:
           echo "APK: $UNSIGNED"
 
           if [ -n "$KEYSTORE_B64" ] && [ -n "$KS_PASS" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/cof.jks"
+            echo "$KEYSTORE_B64" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/cof.jks"
             export SIGN_PASS="$KS_PASS"
+            # deteksi otomatis nama alias di dalam keystore, apapun namanya
+            ALIAS=$(keytool -list -keystore "$RUNNER_TEMP/cof.jks" -storepass "$SIGN_PASS" 2>/dev/null \
+                    | grep -i 'PrivateKeyEntry' | head -n1 | cut -d',' -f1)
+            if [ -z "$ALIAS" ]; then
+              echo "::error::Tidak ada PrivateKeyEntry di keystore (cek lagi KEYSTORE_B64/KS_PASS)."
+              exit 1
+            fi
+            echo "Alias terdeteksi: $ALIAS"
           else
             echo "::warning::Secret KEYSTORE_B64/KS_PASS kosong, pakai key sementara (nggak bisa menimpa build sebelumnya)."
             keytool -genkeypair -keystore "$RUNNER_TEMP/cof.jks" -storetype PKCS12 -alias cof \
               -keyalg RSA -keysize 2048 -validity 10000 -storepass tempcof123 -keypass tempcof123 \
               -dname "CN=temp" > /dev/null 2>&1
             export SIGN_PASS=tempcof123
+            ALIAS=cof
           fi
-          "$APKSIGNER" sign --ks "$RUNNER_TEMP/cof.jks" --ks-key-alias cof \
+          "$APKSIGNER" sign --ks "$RUNNER_TEMP/cof.jks" --ks-key-alias "$ALIAS" \
             --ks-pass env:SIGN_PASS --key-pass env:SIGN_PASS \
             --out dist/CoF-Launcher.apk "$UNSIGNED"
 
